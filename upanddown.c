@@ -32,6 +32,7 @@ int main(int argc,char *argv[]) {
 	COIPROCESS *coi_process;
 	COIPROCESS proc;
 	COIRESULT res;
+	COIBUFFER buffer;
 	COIPIPELINE pipeline;
 	COIEVENT function_event;
 	COIFUNCTION alloc_func;
@@ -39,9 +40,10 @@ int main(int argc,char *argv[]) {
 	COIFUNCTION todo_func;
 	COIFUNCTION clean_func;
 	COIFUNCTION lookup_funcs[4];
+	COI_ACCESS_FLAGS flags = COI_SINK_WRITE;
 	adble* input_data = NULL;
 	adble* output_data = NULL;
-	void* buffer_ptr = NULL;
+	void* buffer_ptr ;
 	uint64_t buffer_size;
 	const char*  SINK_NAME = "offload_on_mic";
 
@@ -77,7 +79,7 @@ int main(int argc,char *argv[]) {
 			0, NULL,        // argc and argv for the sink process.
 			false, NULL,    // Environment variables to set for the sink process.
 			true, NULL,     // Enable the proxy but don't specify a proxy root path.
-			0,              // The amount of memory to pre-allocate and register for use with COIBUFFERs.
+			SIZE,              // The amount of memory to pre-allocate and register for use with COIBUFFERs.
 			NULL,           // Path to search for dependencies
 			&proc           // The resulting process handle.
 			);
@@ -95,13 +97,55 @@ int main(int argc,char *argv[]) {
 			funcs,
 			lookup_funcs	// Handles to the functions
 			);
-	assert(res == COI_SUCCESS);
+	assert(res==COI_SUCCESS);
 	alloc_func      = lookup_funcs[0];
 	init_func       = lookup_funcs[1];
 	todo_func	= lookup_funcs[2];
 	clean_func      = lookup_funcs[3];
+	printf("Got function handles\n");
 
-	/* Launch the run function */
+/* Call alloc function */
+        /* Launch the run functions */
+        res = COIPipelineRunFunction(
+                        pipeline, alloc_func,   // Pipeline handle and function handle
+                        0, NULL, NULL,          // Buffers and access flags to pass to the function
+                        0, NULL,                // Input dependencies
+                        &buffer_size,           // Misc data to pass to the function
+                        sizeof(buffer_size),    //
+                        &buffer_ptr,            // Return values that will be passed back
+                        sizeof(buffer_ptr),
+                        &function_event);
+        assert(res==COI_SUCCESS);
+
+        res = COIEventWait(
+                        1,                      // Number of event to wait
+                        &function_event,        // Event handle
+                        -1,                     // Wait indefinitely
+                        true,                   // Wait for all events
+                        NULL,NULL);             // Number of event signaled and their indices
+        assert(res==COI_SUCCESS);
+
+	printf("Got buffer address %p\n",buffer_ptr);
+	if(!buffer_ptr) {
+		printf("Failed to allocate buffer memory on the sink\n");
+		return -1;
+	}
+
+	res = COIBufferCreateFromMemory(
+			buffer_size,		// The size of the buffer being created
+			COI_BUFFER_NORMAL,	// Allocate a normal buffer type
+			COI_SINK_MEMORY,	// Flag indicates the memory is on the sink
+			buffer_ptr,		// Virtual address from the sink
+			1,			// Number of process where buffer will be used
+			&proc,			// Array of process handles
+			&buffer);		// Output handle for the buffer
+        assert(res==COI_SUCCESS);
+
+
+/* Return alloc function */
+
+/* Call todo function */
+	/* Launch the run functions */
 	res = COIPipelineRunFunction(
 			pipeline, todo_func,	// Pipeline handle and function handle
 			0, NULL, NULL,		// Buffers and access flags to pass to the function
@@ -120,6 +164,7 @@ int main(int argc,char *argv[]) {
 			true,			// Wait for all events
 			NULL,NULL);		// Number of event signaled and their indices
 	assert(res==COI_SUCCESS);
+/* Return todo function */
 
 	/* Destroy the pipeline */
 	res = COIPipelineDestroy(pipeline);
@@ -136,7 +181,7 @@ int main(int argc,char *argv[]) {
 
 	gettimeofday(&end, NULL);
 	/* Time evaluation */
-	printf("up and down offload and work = \t");
+	printf("Time to do everything on the mic = \t");
 	printf(" %g\n", ((end.tv_sec + end.tv_usec * 1e-6) - (beg.tv_sec + beg.tv_usec * 1e-6)));
 	printf("_________________________________________________________________________\n\n");
 

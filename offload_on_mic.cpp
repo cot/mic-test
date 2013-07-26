@@ -45,7 +45,49 @@ int main(int argc, char*argv[]){
 }
 
 COINATIVELIBEXPORT
-void alloc() {
+void alloc(uint32_t         in_BufferCount,
+           void**           in_ppBufferPointers,
+           uint64_t*        in_pBufferLengths,
+           void*            in_pMiscData,
+           uint16_t         in_MiscDataLength,
+           void*            in_pReturnValue,
+           uint16_t         in_ReturnValueLength) {
+
+	UNREFERENCED_PARAM(in_BufferCount);
+	UNREFERENCED_PARAM(in_ppBufferPointers);
+	UNREFERENCED_PARAM(in_pBufferLengths);
+	if (in_MiscDataLength != sizeof(uint64_t) || !in_pMiscData ||
+			in_ReturnValueLength != sizeof(void*) || !in_pReturnValue)
+	{
+		return;
+	}
+
+
+	// Allocate memory that will be used later as a Intel® Coprocessor Offload Infrastructure (Intel® COI)  buffer.
+
+	uint64_t size = *(uint64_t*)in_pMiscData;
+	posix_memalign(&g_buffer, 4096, size);
+
+	if (!g_buffer)
+	{
+		printf("Error allocating memory for the buffer\n");fflush(0);
+		goto end;
+	}
+	// The single allocation will be used as two halves, the first half to
+	// hold input data and the second half to hold the output data.
+	//
+	g_buffer_length = size;
+	g_input_buffer = (adble*)g_buffer;
+	g_output_buffer = &((adble*)g_buffer)[size/2];
+
+	// Need to return the address back to the source so that it can be
+	// passed to COIBufferCreateFromMemory.
+	//
+end:
+	*(void**)in_pReturnValue = g_buffer;
+
+
+	printf("alloc on the mic\n");
 
 }
 
@@ -56,7 +98,7 @@ void init() {
 COINATIVELIBEXPORT
 void todo() {
 	char command[50];
-	
+
 	strcpy(command,"cat /proc/cpuinfo |grep 'cpu family'|wc -l");
 	system(command);
 
