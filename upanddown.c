@@ -21,7 +21,8 @@ int main(int argc,char *argv[]) {
 
 	/*Program Variables */
 	int i;
-	int SIZE;
+	uint64_t SIZE;
+	uint64_t amount;
 	int count;
 	struct timeval beg, end;
 //	__declspec(target(mic)) adble *p1off;
@@ -35,6 +36,7 @@ int main(int argc,char *argv[]) {
 	COIBUFFER buffer;
 	COIPIPELINE pipeline;
 	COIEVENT function_event;
+	COIEVENT write_event;
 	COIFUNCTION alloc_func;
 	COIFUNCTION init_func;
 	COIFUNCTION todo_func;
@@ -51,14 +53,16 @@ int main(int argc,char *argv[]) {
 	if(argc>1)
 		SIZE = atoi(argv[1]);
 	else
-		SIZE = 1000;
-	printf("Pb SIZE = %i\n",SIZE);
+		SIZE = 100;
+
+	amount = SIZE * sizeof(adble);
 	buffer_size = 2 * SIZE;
+	printf("Pb size = %i and buffer_size = %i\n",(int)SIZE,(int)buffer_size);
 
 	/* Define input data */
 	input_data  = (adble*)malloc(SIZE*sizeof(adble));
-	output_data = (adble*)malloc(SIZE*sizeof(adble));
-	for(i=0; i<SIZE; i++)
+	output_data = (adble*)calloc(SIZE,sizeof(adble));
+	for(i=0; i<SIZE; i++) 
 		input_data[i] = i;
 	
 	/* Time evaluation */
@@ -79,7 +83,7 @@ int main(int argc,char *argv[]) {
 			0, NULL,        // argc and argv for the sink process.
 			false, NULL,    // Environment variables to set for the sink process.
 			true, NULL,     // Enable the proxy but don't specify a proxy root path.
-			SIZE,              // The amount of memory to pre-allocate and register for use with COIBUFFERs.
+			SIZE,           // The amount of memory to pre-allocate and register for use with COIBUFFERs.
 			NULL,           // Path to search for dependencies
 			&proc           // The resulting process handle.
 			);
@@ -144,16 +148,37 @@ int main(int argc,char *argv[]) {
 
 /* Return alloc function */
 
+/* Call init function */
+	/* Launch the run functions */
+	res = COIPipelineRunFunction(
+			pipeline, init_func,
+			1, &buffer, &flags,
+			0, NULL,
+			NULL, 0,
+			NULL, 0,
+			&function_event);
+        assert(res==COI_SUCCESS);
+
+	res = COIBufferWrite(
+			buffer,             // Destination buffer to write to
+			0,                  // Starting offset to write to in the buffer
+			input_data,         // Address of the memory with the source data
+			SIZE,               // Number of bytes to write
+			COI_COPY_USE_DMA,   // How to transfer the data, force DMA here
+			0, NULL,            // Input dependencies
+			&write_event        // Completion event signaled when DMA finishes
+		      );
+        assert(res==COI_SUCCESS);
+/* Return init function */
+
 /* Call todo function */
 	/* Launch the run functions */
 	res = COIPipelineRunFunction(
 			pipeline, todo_func,	// Pipeline handle and function handle
 			0, NULL, NULL,		// Buffers and access flags to pass to the function
-			0, NULL,		// Input dependencies
-			NULL,			// Misc data to pass to the function
-			0,			//
-			NULL,			// Return values that will be passed back
-			0,
+			1, &write_event,	// Input dependencies
+			NULL,0,			// Misc data to pass to the function
+			NULL,0, 		// Return values that will be passed back
 			&function_event);
 	assert(res==COI_SUCCESS);
 
@@ -164,13 +189,51 @@ int main(int argc,char *argv[]) {
 			true,			// Wait for all events
 			NULL,NULL);		// Number of event signaled and their indices
 	assert(res==COI_SUCCESS);
-/* Return todo function */
 
-	/* Destroy the pipeline */
+	res = COIBufferRead(
+			buffer,             	// Source buffer to read from
+			SIZE,        	    	// Started offset to read from in the buffer
+			output_data,        	// Local memory to use as destination
+			SIZE,          	    	// Number of bytes to read
+			COI_COPY_USE_DMA,   	// How to transfer the data, force DMA here
+			1, &function_event, 	// Input dependencies
+			COI_EVENT_SYNC      	// Force this read to be synchronous
+			);
+	assert(res == COI_SUCCESS);
+/* Return todo function */
+	for(i=0;i<SIZE;i++){
+		printf("%g \n",output_data[i] / input_data[i]);
+//		assert( (output_data[i] / input_data[i]) == 2);
+		}	
+/* Call clean function */
+        /* Launch the run functions */
+        res = COIPipelineRunFunction(
+                        pipeline, clean_func,   // Pipeline handle and function handle
+                        0, NULL, NULL,          // Buffers and access flags to pass to the function
+                        0, NULL,	        // Input dependencies
+                        NULL,0,                 // Misc data to pass to the function
+                        NULL,0,                 // Return values that will be passed back
+                        &function_event);
+        assert(res==COI_SUCCESS);
+
+        res = COIEventWait(
+                        1,                      // Number of event to wait
+                        &function_event,        // Event handle
+                        -1,                     // Wait indefinitely
+                        true,                   // Wait for all events
+                        NULL,NULL);             // Number of event signaled and their indices
+        assert(res==COI_SUCCESS);
+/* Return clean function */
+
+/* Destroy the buffer */
+	res = COIBufferDestroy(buffer);
+	assert(res==COI_SUCCESS);
+
+/* Destroy the pipeline */
 	res = COIPipelineDestroy(pipeline);
 	assert(res==COI_SUCCESS);
 
-	/* Destroy the process */
+/* Destroy the process */
 	res = COIProcessDestroy(
 			proc,			// Process handle to be destroyed
 			-1,			// Wait indefinitely

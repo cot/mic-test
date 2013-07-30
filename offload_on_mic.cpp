@@ -92,13 +92,55 @@ end:
 }
 
 COINATIVELIBEXPORT
-void init() {
+void init(
+          uint32_t         in_BufferCount,
+          void**           in_ppBufferPointers,
+          uint64_t*        in_pBufferLengths,
+          void*            in_pMiscData,
+          uint16_t         in_MiscDataLength,
+          void*            in_pReturnValue,
+          uint16_t         in_ReturnValueLength) {
 
+	UNREFERENCED_PARAM(in_BufferCount);
+	UNREFERENCED_PARAM(in_ppBufferPointers);
+	UNREFERENCED_PARAM(in_pBufferLengths);
+	UNREFERENCED_PARAM(in_pMiscData);
+	UNREFERENCED_PARAM(in_MiscDataLength);
+	UNREFERENCED_PARAM(in_pReturnValue);
+	UNREFERENCED_PARAM(in_ReturnValueLength);
+
+	assert(in_BufferCount == 1);
+
+	COIRESULT res = COIBufferAddRef(g_buffer);
+
+	assert(res==COI_SUCCESS);
 }
 COINATIVELIBEXPORT
-void todo() {
-	char command[50];
+void todo(
+		uint32_t         in_BufferCount,
+		void**           in_ppBufferPointers,
+		uint64_t*        in_pBufferLengths,
+		void*            in_pMiscData,
+		uint16_t         in_MiscDataLength,
+		void*            in_pReturnValue,
+		uint16_t         in_ReturnValueLength) {
+	UNREFERENCED_PARAM(in_BufferCount);
+	UNREFERENCED_PARAM(in_ppBufferPointers);
+	UNREFERENCED_PARAM(in_pBufferLengths);
+	UNREFERENCED_PARAM(in_pMiscData);
+	UNREFERENCED_PARAM(in_MiscDataLength);
+	UNREFERENCED_PARAM(in_pReturnValue);
+	UNREFERENCED_PARAM(in_ReturnValueLength);
 
+	uint64_t i;
+	
+	for(i=0;i<g_buffer_length/2;i++) {
+		g_output_buffer[i] =  g_input_buffer[i] * 2;
+		printf("g_input_buffer[%i] = %g \n",(int)i,g_input_buffer[i]);
+		printf("g_output_buffer[%i] = %g \n",(int)i,g_output_buffer[i]);
+	}
+
+	char command[50];
 	strcpy(command,"cat /proc/cpuinfo |grep 'cpu family'|wc -l");
 	system(command);
 
@@ -107,26 +149,23 @@ void todo() {
 }
 
 COINATIVELIBEXPORT
-void clean() {
+void clean(
+          uint32_t         in_BufferCount,
+          void**           in_ppBufferPointers,
+	  uint64_t*        in_pBufferLengths,
+	  void*            in_pMiscData,
+	  uint16_t         in_MiscDataLength,
+	  void*            in_pReturnValue,
+	  uint16_t         in_ReturnValueLength) {
+	UNREFERENCED_PARAM(in_BufferCount);
+	UNREFERENCED_PARAM(in_ppBufferPointers);
+	UNREFERENCED_PARAM(in_pBufferLengths);
+	UNREFERENCED_PARAM(in_pMiscData);
+	UNREFERENCED_PARAM(in_MiscDataLength);
+	UNREFERENCED_PARAM(in_pReturnValue);
+	UNREFERENCED_PARAM(in_ReturnValueLength);
+
+	COIBufferReleaseRef(g_buffer);
 
 }
-
-/*
-
-	__declspec(align(64)) Is32vec16 inputData(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15);
-	__declspec(align(64)) Is32vec16 outputData; std::cout << "input = " << inputData;
-
-	// Swizzle input data and print
-	std::cout << "\n nswizzle data for pattern 'cdab' \n" <<  inputData.cdab();
-
-	// Swizzle input data and print
-	// --> shuffle intra lane data
-	std::cout << "\n Intra lane shuffle data for pattern 'aaaa' \n";
-	outputData = Is32vec16(_mm512_shuffle_epi32(__m512i(inputData), _MM_PERM_AAAA)); std::cout << outputData << "\n";
-
-	// --> shuffle inter lane data
-	std::cout << " Inter lane shuffle data for pattern 'aabc' \n";
-	outputData = Is32vec16(_mm512_permute4f128_epi32(__m512i(inputData), _MM_PERM_AABC)); std::cout << outputData << "\n";
-*/
-
 
